@@ -1,111 +1,60 @@
 # telegram-reader
 
-**Read-only Telegram reader.** Fetch recent messages from **any of your chats** —
-groups, channels, or private conversations — using your **own account**, and
-save them as JSON + Markdown for you or an AI agent (Claude) to read and
-analyze.
+> Are you too fucking lazy to read your own Telegram messages and want an AI agent to read them for you? **This tool is for you!**
 
-> 🔒 **This tool never posts anything to Telegram.** It only reads. There is no
-> code path that sends, edits, or deletes messages.
+Fetches recent messages from **any of your chats** (groups, channels, private) with your own account, saves them as JSON + Markdown, and lets Claude (or any AI) read and analyze them.
 
-## Features
+🔒 **Never posts anything.** It only reads — no code path can send, edit, or delete a message.
 
-- **Any chat type** — groups, supergroups, channels, and private conversations
-- **Your account** — reads everything you're allowed to see (Telethon / MTProto)
-- **Two outputs per fetch** — structured JSON + human-readable Markdown
-- **Safe by design** — read-only; config, session, and fetched data are git-ignored
-- **AI-friendly** — designed to feed message dumps to Claude for analysis
+## Quick start
 
-## How it works
-
-```
-Your chats ──(Telethon, logged in as you)──> data/*.json + *.md ──> Claude reads & analyzes
-```
-
-Run `fetch` whenever you want, then ask Claude anything about the messages:
-summarize, find topics, answer questions, track keywords, and more.
-
-## Requirements
-
-- Python 3.9+
-- A Telegram account (free)
-- API credentials from <https://my.telegram.org> (free, ~2 minutes)
-
-## Setup
-
-1. Install the dependency:
-
+1. **Install**
    ```sh
    pip install -r requirements.txt
    ```
 
-   (This project was built with a conda base environment — activate it with
-   `conda activate base`, or call the base python explicitly.)
+2. **Get credentials** (free, ~2 min): go to [my.telegram.org](https://my.telegram.org) → *API development tools* → create an app → copy **api_id** + **api_hash**.
 
-2. Get your API credentials:
-   - Go to <https://my.telegram.org>
-   - Log in with your phone number
-   - Open **API development tools** → create an application (any name)
-   - Copy the **api_id** (number) and **api_hash** (string)
-
-3. Create your config:
-
+3. **Configure**
    ```sh
-   cp config.example.json config.json
+   cp config.example.json config.json   # paste in your api_id & api_hash
    ```
 
-   Then edit `config.json` and paste in your `api_id` and `api_hash`.
+4. **Login** (one time)
+   ```sh
+   python reader.py login
+   ```
 
-## One-time login
+5. **Fetch**
+   ```sh
+   python reader.py list                  # see your chats
+   python reader.py fetch                 # pick chats interactively
+   python reader.py fetch -g "My Group" --limit 200
+   ```
 
-```sh
-python reader.py login
-```
+That's it. Each fetch writes two files into `data/`:
 
-Enter your phone number, then the code Telegram sends you (and your 2FA
-password if you have one). A `session.session` file is saved, so you only do
-this once.
+- `<chat>__<timestamp>.json` — structured, best for AI analysis
+- `<chat>__<timestamp>.md` — human-readable
 
-## Usage
+## Ask an AI about them
 
-```sh
-python reader.py list                          # see your chats and their numbers
-python reader.py fetch                         # pick chats interactively
-python reader.py fetch --all --limit 200       # fetch from every chat
-python reader.py fetch -g "My Group" -g 12345 --limit 100
-```
-
-Fetch any chat by name or ID — groups, channels, and private conversations all
-work the same way. Each fetch saves two files into `data/`:
-
-- `<chat>__<timestamp>.json` — structured data, best for AI analysis
-- `<chat>__<timestamp>.md` — human-readable version
-
-## Ask Claude to read them
-
-Point Claude at the `data/` folder or a specific file and ask anything:
-
-- "Summarize what happened in this group this week."
-- "What are people discussing? Any recurring topics?"
-- "Find every message mentioning X."
+Point Claude at `data/` and ask anything — *"Summarize what happened this week"*, *"What topics keep coming up?"*, *"Find every mention of X."*
 
 ## Project structure
 
 ```
-telegram-reader/
-├── reader.py              # the fetch tool (read-only)
-├── config.example.json    # config template (api_id, api_hash)
-├── requirements.txt       # Python dependencies
-├── data/                  # fetched messages (git-ignored)
-└── session.session        # your login session (git-ignored)
+reader.py              # the tool (read-only)
+config.example.json    # config template
+requirements.txt       # telethon
+data/                  # fetched messages (git-ignored)
 ```
 
-## Security notes
+## Notes
 
-- `config.json` contains your `api_hash` — never commit or share it.
-- `session.session` is a login token — treat it like a password.
-- Fetched messages stay on your machine; nothing is uploaded anywhere.
-- `config.json`, `session.session`, and `data/` are all git-ignored.
+- **Credentials:** `config.json` (api_hash) and `session.session` (login token) are git-ignored — never share or commit them.
+- **Privacy:** fetched messages stay on your machine; nothing is uploaded anywhere.
+- **Python:** built on conda base — if `python` isn't your base env, use `/Users/Radin/miniconda3/bin/python`.
 
 ## License
 
