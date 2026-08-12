@@ -1,10 +1,10 @@
 # telegram-reader
 
-> Are you too fucking lazy to read your own Telegram messages and want an AI agent to read them for you? **This tool is for you!**
+> Are you too fucking lazy to read your own Telegram messages and want an AI agent to read them for you? This tool is for you!
 
-Fetches recent messages from **any of your chats** (groups, channels, private) with your own account, saves them as JSON + Markdown, and lets Claude (or any AI) read and analyze them.
+Fetches recent messages from any of your chats (groups, channels, private) with your own account, saves them as JSON + Markdown, and lets any AI read and analyze them.
 
-🔒 **Never posts anything.** It only reads — no code path can send, edit, or delete a message.
+**Never posts anything.** It only reads — no code path can send, edit, or delete a message.
 
 ## Quick start
 
@@ -13,7 +13,7 @@ Fetches recent messages from **any of your chats** (groups, channels, private) w
    pip install -r requirements.txt
    ```
 
-2. **Get credentials** (free, ~2 min): go to [my.telegram.org](https://my.telegram.org) → *API development tools* → create an app → copy **api_id** + **api_hash**.
+2. **Get credentials**: go to [my.telegram.org](https://my.telegram.org) → *API development tools* → create an app → copy **api_id** + **api_hash**.
 
 3. **Configure**
    ```sh
@@ -39,7 +39,7 @@ That's it. Each fetch writes two files into `data/`:
 
 ## Ask an AI about them
 
-Point Claude at `data/` and ask anything — *"Summarize what happened this week"*, *"What topics keep coming up?"*, *"Find every mention of X."*
+Point an AI agent at `data/` and ask anything.
 
 ## Project structure
 
@@ -49,13 +49,3 @@ config.example.json    # config template
 requirements.txt       # telethon
 data/                  # fetched messages (git-ignored)
 ```
-
-## Notes
-
-- **Credentials:** `config.json` (api_hash) and `session.session` (login token) are git-ignored — never share or commit them.
-- **Privacy:** fetched messages stay on your machine; nothing is uploaded anywhere.
-- **Python:** built on conda base — if `python` isn't your base env, use `/Users/Radin/miniconda3/bin/python`.
-
-## License
-
-[MIT](LICENSE) © 2026 Radin Shahdaei
