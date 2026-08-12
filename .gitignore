@@ -1,0 +1,13 @@
+# Secrets — never commit these
+config.json
+session.session
+
+# Python
+__pycache__/
+*.pyc
+
+# Fetched messages may be private — ignore by default
+data/
+
+# macOS
+.DS_Store

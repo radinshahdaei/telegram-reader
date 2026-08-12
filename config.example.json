@@ -1,0 +1,5 @@
+{
+  "api_id": 123456,
+  "api_hash": "replace_with_your_32_char_hash_from_my.telegram.org",
+  "default_limit": 100
+}
