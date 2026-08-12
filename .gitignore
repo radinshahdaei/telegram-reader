@@ -9,5 +9,8 @@ __pycache__/
 # Fetched messages may be private — ignore by default
 data/
 
+# Local analysis output (personal — not part of the repo)
+analysis.md
+
 # macOS
 .DS_Store
