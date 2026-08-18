@@ -59,7 +59,6 @@ List groups matching a term (with Persian ↔ English synonyms) and their topics
 
 ```sh
 python search.py finland             # matches "finland", "فنلاند", "فینلندیا" …
-python search.py "finland|sweden"    # regex works too
 python search.py آلمان               # Persian → matches German groups
 ```
 
