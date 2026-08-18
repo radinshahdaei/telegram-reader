@@ -44,6 +44,16 @@ python reader.py fetch -g "My Group" -t 246845 -t "Visa"       # several topics,
 
 Fetching *without* `-t` on a forum returns the merged recent activity across all topics.
 
+### Date filtering
+
+Use `--since` / `--until` (YYYY-MM-DD) to fetch only messages within a date range:
+
+```sh
+python reader.py fetch -g "My Group" -t "Visa" --since 2026-06-01 --until 2026-08-01
+```
+
+Both are optional and inclusive; combine with `--limit` to cap the result.
+
 That's it. Each fetch writes two files into `data/`:
 
 - `<chat>__<timestamp>.json` — structured, best for AI analysis

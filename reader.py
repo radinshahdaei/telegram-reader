@@ -20,7 +20,7 @@ import asyncio
 import json
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from telethon import TelegramClient
@@ -49,6 +49,26 @@ def load_config() -> dict:
 def safe_name(name: str) -> str:
     # Keep word chars from any language so Persian group names survive, plus . and -
     return re.sub(r"[^\w.-]+", "_", name).strip("_") or "chat"
+
+
+def parse_datetime(text: str, *, end_of_day: bool = False) -> datetime:
+    """Parse a date like 'YYYY-MM-DD' (or 'YYYY-MM-DD HH:MM[:SS]') as UTC.
+
+    With end_of_day=True a bare date is treated as 23:59:59 so it's inclusive.
+    """
+    text = text.strip()
+    has_time = len(text) > 10
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d", "%Y/%m/%d"):
+        try:
+            dt = datetime.strptime(text, fmt)
+            break
+        except ValueError:
+            continue
+    else:
+        raise SystemExit(f"Unrecognized date {text!r} — use YYYY-MM-DD or YYYY-MM-DD HH:MM.")
+    if end_of_day and not has_time:
+        dt = dt.replace(hour=23, minute=59, second=59)
+    return dt.replace(tzinfo=timezone.utc)
 
 
 def display_name(entity) -> str:
@@ -134,22 +154,42 @@ def write_outputs(name: str, records: list) -> None:
     print(f"  Markdown:  {md_path}")
 
 
-async def fetch_dialog(client: TelegramClient, dialog, limit: int, topic=None) -> None:
+async def fetch_dialog(client: TelegramClient, dialog, limit: int,
+                       topic=None, since=None, until=None) -> None:
     name = dialog.name
+    entity = dialog.entity
     if topic is not None:
         name = f"{dialog.name} · {topic.title}"
+
+    if since is None and until is None:
+        # Latest `limit` messages (no date filter).
         messages = await client.get_messages(
-            dialog.entity, limit=limit, reply_to=topic.id
+            entity, limit=limit, reply_to=topic.id if topic else None
         )
-        print(f"\nFetching up to {limit} messages from topic '{topic.title}' "
-              f"(id={topic.id}) in: {dialog.name}")
+        print(f"\nFetching up to {limit} messages from: {name}")
+        records = []
+        for m in messages:
+            if isinstance(m, Message):
+                records.append(await serialize(client, m, name, dialog.id))
     else:
-        messages = await client.get_messages(dialog.entity, limit=limit)
-        print(f"\nFetching up to {limit} messages from: {dialog.name}")
-    records = []
-    for m in messages:
-        if isinstance(m, Message):
-            records.append(await serialize(client, m, name, dialog.id))
+        # Date-window fetch: walk newest → oldest, stop past the window or the cap.
+        lo = since.strftime("%Y-%m-%d %H:%M") if since else "start"
+        hi = until.strftime("%Y-%m-%d %H:%M") if until else "now"
+        print(f"\nFetching {lo} → {hi} (max {limit} messages) from: {name}")
+        kwargs = {"reverse": False}
+        if topic is not None:
+            kwargs["reply_to"] = topic.id
+        if until is not None:
+            kwargs["offset_date"] = until
+        records = []
+        async for m in client.iter_messages(entity, **kwargs):
+            if since is not None and m.date and m.date < since:
+                break
+            if isinstance(m, Message):
+                records.append(await serialize(client, m, name, dialog.id))
+            if len(records) >= limit:
+                break
+
     records.sort(key=lambda r: r["date"] or "")
     write_outputs(name, records)
 
@@ -241,7 +281,10 @@ async def run(args) -> None:
         if not selected:
             print("Nothing selected.")
         else:
-            limit = args.limit or cfg.get("default_limit", 100)
+            since = parse_datetime(args.since) if args.since else None
+            until = parse_datetime(args.until, end_of_day=True) if args.until else None
+            default_limit = 10000 if (since or until) else cfg.get("default_limit", 100)
+            limit = args.limit or default_limit
             topic_specs = getattr(args, "topics", None) or []
             for d in selected:
                 try:
@@ -256,9 +299,10 @@ async def run(args) -> None:
                                 print(f"  ! no topic matching '{spec}' in {d.name} "
                                       f"(try `python reader.py topics -g \"{d.name}\"`)")
                         for t in matched:
-                            await fetch_dialog(client, d, limit, topic=t)
+                            await fetch_dialog(client, d, limit, topic=t,
+                                               since=since, until=until)
                     else:
-                        await fetch_dialog(client, d, limit)
+                        await fetch_dialog(client, d, limit, since=since, until=until)
                 except Exception as e:
                     print(f"  ! failed on {d.name}: {e}")
 
@@ -284,6 +328,8 @@ def parse_args() -> argparse.Namespace:
                        help="topic id or title within the group(s) (repeatable)")
     fetch.add_argument("--all", action="store_true", help="fetch from every chat")
     fetch.add_argument("--limit", type=int, help="recent messages per group")
+    fetch.add_argument("--since", help="only messages on/after this date (YYYY-MM-DD)")
+    fetch.add_argument("--until", help="only messages on/before this date (YYYY-MM-DD)")
 
     return p.parse_args()
 
