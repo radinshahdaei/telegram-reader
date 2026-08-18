@@ -32,6 +32,18 @@ Fetches recent messages from any of your chats (groups, channels, private) with 
    python reader.py fetch -g "My Group" --limit 200
    ```
 
+### Forum topics
+
+If a group has **Topics** enabled (a forum), you can list and fetch individual topics:
+
+```sh
+python reader.py topics -g "My Group"                          # list topics (id + title)
+python reader.py fetch -g "My Group" -t "Housing" --limit 200  # one topic, by title
+python reader.py fetch -g "My Group" -t 246845 -t "Visa"       # several topics, mixed id/title
+```
+
+Fetching *without* `-t` on a forum returns the merged recent activity across all topics.
+
 That's it. Each fetch writes two files into `data/`:
 
 - `<chat>__<timestamp>.json` — structured, best for AI analysis

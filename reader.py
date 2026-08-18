@@ -25,6 +25,7 @@ from pathlib import Path
 
 from telethon import TelegramClient
 from telethon.tl.custom import Message
+from telethon.tl.functions.messages import GetForumTopicsRequest
 
 BASE = Path(__file__).resolve().parent
 CONFIG_PATH = BASE / "config.json"
@@ -96,8 +97,8 @@ async def serialize(client: TelegramClient, m: Message, chat_name: str, chat_id)
     }
 
 
-def render_markdown(dialog, records: list) -> str:
-    lines = [f"# {dialog.name}", ""]
+def render_markdown(name: str, records: list) -> str:
+    lines = [f"# {name}", ""]
     if records:
         lines.append(
             f"Fetched: {datetime.now().isoformat(timespec='seconds')} — "
@@ -117,31 +118,40 @@ def render_markdown(dialog, records: list) -> str:
     return "\n".join(lines)
 
 
-def write_outputs(dialog, records: list) -> None:
+def write_outputs(name: str, records: list) -> None:
     DATA_DIR.mkdir(exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    base = f"{safe_name(dialog.name)}__{stamp}"
+    base = f"{safe_name(name)}__{stamp}"
     json_path = DATA_DIR / f"{base}.json"
     md_path = DATA_DIR / f"{base}.md"
 
     json_path.write_text(
         json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    md_path.write_text(render_markdown(dialog, records), encoding="utf-8")
+    md_path.write_text(render_markdown(name, records), encoding="utf-8")
     print(f"  saved {len(records)} messages")
     print(f"  JSON:      {json_path}")
     print(f"  Markdown:  {md_path}")
 
 
-async def fetch_dialog(client: TelegramClient, dialog, limit: int) -> None:
-    print(f"\nFetching up to {limit} messages from: {dialog.name}")
-    messages = await client.get_messages(dialog.entity, limit=limit)
+async def fetch_dialog(client: TelegramClient, dialog, limit: int, topic=None) -> None:
+    name = dialog.name
+    if topic is not None:
+        name = f"{dialog.name} · {topic.title}"
+        messages = await client.get_messages(
+            dialog.entity, limit=limit, reply_to=topic.id
+        )
+        print(f"\nFetching up to {limit} messages from topic '{topic.title}' "
+              f"(id={topic.id}) in: {dialog.name}")
+    else:
+        messages = await client.get_messages(dialog.entity, limit=limit)
+        print(f"\nFetching up to {limit} messages from: {dialog.name}")
     records = []
     for m in messages:
         if isinstance(m, Message):
-            records.append(await serialize(client, m, dialog.name, dialog.id))
+            records.append(await serialize(client, m, name, dialog.id))
     records.sort(key=lambda r: r["date"] or "")
-    write_outputs(dialog, records)
+    write_outputs(name, records)
 
 
 async def list_dialogs(client: TelegramClient) -> None:
@@ -151,10 +161,39 @@ async def list_dialogs(client: TelegramClient) -> None:
         print(f"  {i:3}. [{d.id}] {d.name}  (unread={d.unread_count or 0})")
 
 
+async def get_topics(client: TelegramClient, entity) -> list:
+    """Return forum topics (objects with .id, .title, .unread_count, .closed, ...)."""
+    if not getattr(entity, "forum", False):
+        return []
+    res = await client(GetForumTopicsRequest(
+        peer=entity, offset_date=None, offset_id=0, offset_topic=0,
+        limit=100, q=None))
+    return list(res.topics)
+
+
+async def list_topics(client: TelegramClient, dialog) -> None:
+    topics = await get_topics(client, dialog.entity)
+    if not topics and not getattr(dialog.entity, "forum", False):
+        print(f"\n'{dialog.name}' is not a forum — it has no topics.")
+        return
+    print(f"\n{dialog.name}: {len(topics)} topics")
+    for t in topics:
+        flags = [f for f in ("closed", "pinned") if getattr(t, f, False)]
+        suffix = f"  [{', '.join(flags)}]" if flags else ""
+        print(f"  {t.id:>7}. {t.title}  (unread={t.unread_count}){suffix}")
+
+
+def match_topic(topics, spec: str):
+    for t in topics:
+        if str(t.id) == str(spec) or t.title == spec:
+            return t
+    return None
+
+
 def select_dialogs(dialogs, args) -> list:
-    if args.all:
+    if getattr(args, "all", False):
         return dialogs
-    if args.groups:
+    if getattr(args, "groups", None):
         selected = []
         for g in args.groups:
             matches = [d for d in dialogs if d.name == g or str(d.id) == g]
@@ -187,6 +226,14 @@ async def run(args) -> None:
         print("Login OK — session saved.")
     elif args.command == "list":
         await list_dialogs(client)
+    elif args.command == "topics":
+        dialogs = await client.get_dialogs()
+        selected = select_dialogs(dialogs, args)
+        if not selected:
+            print("Nothing selected.")
+        else:
+            for d in selected:
+                await list_topics(client, d)
     elif args.command == "fetch":
         dialogs = await client.get_dialogs()
         selected = select_dialogs(dialogs, args)
@@ -194,9 +241,23 @@ async def run(args) -> None:
             print("Nothing selected.")
         else:
             limit = args.limit or cfg.get("default_limit", 100)
+            topic_specs = getattr(args, "topics", None) or []
             for d in selected:
                 try:
-                    await fetch_dialog(client, d, limit)
+                    if topic_specs:
+                        topics = await get_topics(client, d.entity)
+                        matched = []
+                        for spec in topic_specs:
+                            t = match_topic(topics, spec)
+                            if t:
+                                matched.append(t)
+                            else:
+                                print(f"  ! no topic matching '{spec}' in {d.name} "
+                                      f"(try `python reader.py topics -g \"{d.name}\"`)")
+                        for t in matched:
+                            await fetch_dialog(client, d, limit, topic=t)
+                    else:
+                        await fetch_dialog(client, d, limit)
                 except Exception as e:
                     print(f"  ! failed on {d.name}: {e}")
 
@@ -211,9 +272,15 @@ def parse_args() -> argparse.Namespace:
     sub.add_parser("login", help="one-time login, saves session")
     sub.add_parser("list", help="list your chats/groups")
 
+    topics_p = sub.add_parser("topics", help="list topics in a forum group")
+    topics_p.add_argument("-g", "--group", dest="groups", action="append",
+                          help="group name or id (repeatable)")
+
     fetch = sub.add_parser("fetch", help="fetch recent messages from chats")
     fetch.add_argument("-g", "--group", dest="groups", action="append",
                        help="group name or id (repeatable)")
+    fetch.add_argument("-t", "--topic", dest="topics", action="append",
+                       help="topic id or title within the group(s) (repeatable)")
     fetch.add_argument("--all", action="store_true", help="fetch from every chat")
     fetch.add_argument("--limit", type=int, help="recent messages per group")
 
