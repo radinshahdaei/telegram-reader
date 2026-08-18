@@ -53,10 +53,23 @@ That's it. Each fetch writes two files into `data/`:
 
 Point an AI agent at `data/` and ask anything.
 
+## Search your groups
+
+List groups matching a term (with Persian ↔ English synonyms) and their topics:
+
+```sh
+python search.py finland             # matches "finland", "فنلاند", "فینلندیا" …
+python search.py "finland|sweden"    # regex works too
+python search.py آلمان               # Persian → matches German groups
+```
+
+Writes a Markdown report to `data/search__<term>__<timestamp>.md`.
+
 ## Project structure
 
 ```
 reader.py              # the tool (read-only)
+search.py              # search groups by regex + list topics
 config.example.json    # config template
 requirements.txt       # telethon
 data/                  # fetched messages (git-ignored)

@@ -168,7 +168,8 @@ async def get_topics(client: TelegramClient, entity) -> list:
     res = await client(GetForumTopicsRequest(
         peer=entity, offset_date=None, offset_id=0, offset_topic=0,
         limit=100, q=None))
-    return list(res.topics)
+    # Deleted topics come back as ForumTopicDeleted (no .title) — skip them.
+    return [t for t in res.topics if getattr(t, "title", None) is not None]
 
 
 async def list_topics(client: TelegramClient, dialog) -> None:
